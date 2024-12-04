@@ -4,7 +4,7 @@ using Microsoft.Maui.Hosting;
 
 namespace StreetOfYourCity;
 
-class Program : MauiApplication
+partial class Program : MauiApplication
 {
     protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
 
