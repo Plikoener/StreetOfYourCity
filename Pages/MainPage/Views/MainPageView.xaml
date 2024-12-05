@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:StreetOfYourCity.Pages.MainPage.ViewModels"
+             x:Class="StreetOfYourCity.Pages.MainPage.Views.MainPageView"
+             x:DataType="viewModels:MainPageViewModel">
+
+    <ScrollView>
+        <VerticalStackLayout
+            Padding="30,0"
+            Spacing="25">
+            <Image
+                Source="dotnet_bot.png"
+                HeightRequest="185"
+                Aspect="AspectFit"/>
+
+            <Label
+                Text="{Binding Name}"
+                Style="{StaticResource Headline}"
+                SemanticProperties.HeadingLevel="Level2"/>
+
+            <Button
+                x:Name="CounterBtn"
+                Command="{Binding EndCommand}"
+                Text="Beende das Programm"
+                HorizontalOptions="Fill" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
