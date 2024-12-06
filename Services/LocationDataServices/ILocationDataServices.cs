@@ -2,5 +2,5 @@
 
 public interface ILocationDataServices
 {
-    
+    Task<StreetSearchResult?> GetStreetsForCity(string city);
 }
