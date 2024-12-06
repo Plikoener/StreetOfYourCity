@@ -1,7 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.Security.Policy;
 using System.Text;
+using StreetOfYourCity.Services.LocationDataServices.Dto;
 
 namespace StreetOfYourCity.Services.LocationDataServices;
 
@@ -51,74 +52,105 @@ public class LocationDataServices : ILocationDataServices
 
         StreetSearchResult? result = null;
 
-        // Anfrage an die Overpass API senden
         var content = new StringContent(overpassQuery, Encoding.UTF8, "text/plain");
         var response = await client.PostAsync(OverpassApi, content);
 
         if (response.IsSuccessStatusCode)
         {
-            // JSON-Daten verarbeiten
             var jsonResponse = await response.Content.ReadAsStringAsync();
             _logger.LogDebug("answer {jsonResponse}", jsonResponse);
 
-            JObject data = JObject.Parse(jsonResponse);
+            var overpassWayResult = JsonConvert.DeserializeObject<OverpassWayResult>(jsonResponse);
 
-            // Extrahieren der Straßeninformationen
-            if (data["elements"] != null)
+            if (overpassWayResult?.Elements == null) return result;
+
+            foreach (var element in overpassWayResult.Elements)
             {
-                foreach (var element in data["elements"]!)
+                var tags = element.Tags;
+                if(tags == null || string.IsNullOrEmpty(tags.Name))
                 {
-                    var tags = element["tags"];
-                    if(tags == null || tags["name"] == null)
-                    {
-                        continue;
-                    }
-
-                    if (element["type"]!.ToString() == "way" && !string.IsNullOrEmpty(tags["name"]!.ToString()))
-                    {
-                        Console.WriteLine($"Straße ID: {element["id"]}");
-
-                        Console.WriteLine($"Straße Name: {tags["name"]}");
-                        // Sie können auch andere Informationen wie `element["tags"]["name"]` abrufen
-
-                        var nodes = element["nodes"];
-
-                        var streetName = tags["name"]!.ToString();
-                        /*if (_streetInfos.ContainsKey(streetName))
-                        {
-                            _streetInfos[streetName].Ids.Add(long.Parse(element["id"].ToString()));
-                        }
-                        else
-                        {
-                            var streetInfo = new StresstInfo();
-                            streetInfo.Ids.Add(long.Parse(element["id"]!.ToString()));
-                                
-                            foreach (var node in nodes!)
-                            {
-                                streetInfo.Nodes.Add(long.Parse(node.ToString()));
-                            }
-
-                            _streetInfos.Add(streetName, streetInfo);
-                        }*/
-                    }
+                    continue;
                 }
-                /*await GetPositions();
 
-                var count = 0;
-                foreach (var entry in _streetInfos)
+                result ??= new StreetSearchResult();
+
+                //Todo Streets ca have more than one Id...
+                result.Streets.Add(new StreetEntry
                 {
-                    Console.WriteLine($"Straße: {entry}");
-                    count++;
-                    if (count > 11)
-                    {
-                        break;
-                    }
-                }*/
+                    Id = element.Id,
+                    Name = tags.Name
+
+                });
             }
+
+            result = await GetPositions(result);
+
+            if (result == null)
+            {
+                _logger.LogDebug("Nothing found return null");
+                return result;
+            }
+#if DEBUG
+            foreach (var entry in result.Streets)
+            {
+                _logger.LogTrace("Street: {entry}", entry);
+            }
+#endif
+            _logger.LogDebug("{count} streets found", result.Streets.Count);
         }
         else
         {
             _logger.LogError("Http Error {StatusCode}", response.StatusCode);
+        }
+
+        return result;
+    }
+
+    private async Task<StreetSearchResult?> GetPositions(StreetSearchResult? result)
+    {
+        if(result?.Streets  == null) return null;
+
+        var listIds = string.Empty;
+        foreach (var entry in result.Streets)
+        {
+            if (!string.IsNullOrEmpty(listIds))
+            {
+                listIds += ",";
+            }
+            listIds += entry.Id;
+        }
+
+        var overpassQuery = $"""
+                             [out:json];
+                             way(id:{listIds});
+                             out center;
+                             """;
+
+        using var client = new HttpClient();
+
+        var content = new StringContent(overpassQuery, Encoding.UTF8, "text/plain");
+        var response = await client.PostAsync(OverpassApi, content);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Http Error {StatusCode}", response.StatusCode);
+            return null;
+        }
+
+        var jsonResponse = await response.Content.ReadAsStringAsync();
+        var data = JObject.Parse(jsonResponse);
+
+        if (data["elements"] == null) return result;
+
+        foreach (var element in data["elements"]!)
+        {
+            var id = long.Parse(element["id"]!.ToString());
+            var entry = result.Streets.FirstOrDefault(p => p.Id == id);
+
+            if(entry == null) continue;
+
+            entry.Center.Longitude = double.Parse(element["center"]!["lon"]!.ToString());
+            entry.Center.Latitude = double.Parse(element["center"]!["lat"]!.ToString());
         }
 
         return result;
