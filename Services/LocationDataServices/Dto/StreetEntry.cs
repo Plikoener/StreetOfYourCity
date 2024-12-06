@@ -6,7 +6,7 @@ public class StreetEntry
 
     public string? Name { get; set; }
 
-    public GeoPosition Center { get; } = new();
+    public MapPoint Center { get; } = new();
 
     public override string ToString()
     {
