@@ -1,193 +1,117 @@
-﻿using System.Globalization;
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using Microsoft.Maui.Controls.Internals;
-using StreetOfYourCity.Services.ImagesServices.Dto;
+﻿using StreetOfYourCity.Models;
 using StreetOfYourCity.Services.LocationDataServices.Dto;
+using System.Globalization;
+using System.Reactive.Disposables;
+using System.Text.Json;
 
 namespace StreetOfYourCity.Services.ImagesServices;
 
 public class ImageServices : IImageServices
 {
-    private static readonly DateTime UnixEpoch = new( 1970, 1, 1, 0, 0, 0, DateTimeKind.Utc );
+    private static readonly DateTime UnixEpoch = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    private readonly ILogger<ImageServices> _logger;
-    private readonly string _accessToken;
-    
-    public ImageServices(ILogger<ImageServices> logger, string accessToken)
+    private const double Wgs84A = 6378137.0;
+    private const double Wgs84B = 6356752.3;
+
+    private const string ApiAccessUrl = "https://graph.mapillary.com/images";
+    private readonly string _apiAccessToken;
+
+    public ImageServices(string apiApiAccessToken)
     {
-        _logger = logger;
-        _accessToken = accessToken;
-        logger.LogDebug("ctor");
+        _apiAccessToken = apiApiAccessToken;
     }
 
-    private class ApiSearchResult
+    public async Task<IList<ImageServiceModel>> GetMapillaryImagesUrl(MapPoint mapPoint, double halfSideInKm)
     {
-        public string? Url1 { get; set; }
-        public DateTime Created1 { get; set; }
-        public string? Creator1 { get; set; }
+        (MapPoint minPoint, MapPoint maxPoint) = GetImagePointRadii(mapPoint, halfSideInKm);
 
-        public string? Url2 { get; set; }
-        public DateTime Created2 { get; set; }
-        public string? Creator2 { get; set; }
+        if (minPoint == null || maxPoint == null) throw new InvalidOperationException("Bounding points cannot be null.");
 
-        public string? Url3 { get; set; }
-        public DateTime Created3 { get; set; }
-        public string? Creator3 { get; set; }
-    }
+        using HttpClient client = new();
+        client.DefaultRequestHeaders.Add("Authorization", $"OAuth {_apiAccessToken}");
 
-    private async Task<ApiSearchResult?> GetMapillaryImageUrlsAsync(MapPoint mapPoint, double halfSideInKm)
-    {
-        var boundingBox = GeoHelper.GetBoundingBox(mapPoint, halfSideInKm);
-
-        if (boundingBox.MinPoint == null || boundingBox.MaxPoint == null)
-        {
-            _logger.LogError("boundingBox.MinPoint == null");
-            return null;
-        }
-
-        const string apiUrl = "https://graph.mapillary.com/images";
-
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("Authorization", $"OAuth {_accessToken}");
-        
-        // Anfrage-URL mit Koordinaten und den gewünschten Feldern  ( minLon, minLat, maxLon, maxLat).   thumb_2048
-        var fieldName = "thumb_256_url"; //thumb_2048_url
+        const string fieldName = "thumb_256_url";
         string url =
-            $"{apiUrl}?fields={fieldName},creator,captured_at&bbox={boundingBox.MinPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{boundingBox.MinPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
-            $",{boundingBox.MaxPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{boundingBox.MaxPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
+            $"{ApiAccessUrl}?fields={fieldName},creator,captured_at&bbox={minPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{minPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
+            $",{maxPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{maxPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
             "&limit=3";
-        _logger.LogDebug(url);
-        
-        try
+
+        HttpResponseMessage response = await client.GetAsync(url);
+
+        //if (!response.DisposeWith()) throw new HttpRequestException($"Unexpected api status code. - {response.StatusCode}");
+
+        string jsonData = await response.Content.ReadAsStringAsync();
+        JsonElement jsonRootElement = JsonDocument.Parse(jsonData).RootElement;
+
+        if (jsonRootElement.TryGetProperty("data", out JsonElement imageData) && imageData.GetArrayLength() > 0)
         {
-            HttpResponseMessage response = await client.GetAsync(url);
+            IList<ImageServiceModel> imageList = new List<ImageServiceModel>();
 
-            if (response.IsSuccessStatusCode)
+            for (int arrayPosition = 0; arrayPosition < imageData.GetArrayLength(); arrayPosition++)
             {
-                string json = await response.Content.ReadAsStringAsync();
+                string imageUrl = imageData[0].GetProperty(fieldName).GetString()!;
+                DateTime imageRecordTime = DateTimeFromUnixTimestampMilliSeconds(imageData[0].GetProperty("captured_at").GetInt64());
+                string? imageCreator = imageData[0].GetProperty("creator").GetProperty("username").GetString();
 
-                _logger.LogDebug(json);
-
-                // JSON-Daten parsen
-                JsonDocument doc = JsonDocument.Parse(json);
-                JsonElement root = doc.RootElement;
-
-                if (root.TryGetProperty("data", out JsonElement data) && data.GetArrayLength() > 0)
-                {
-                    _logger.LogDebug("Anzahl URLs : " + data.GetArrayLength());
-
-                    var result = new ApiSearchResult();
-
-                    for (var i = 0; i < data.GetArrayLength(); i++)
-                    {
-                        switch (i)
-                        {
-                            case 0:
-                                result.Url1 = data[0].GetProperty(fieldName).GetString();
-                                result.Creator1 = data[0].GetProperty("creator").GetProperty("username").GetString();
-                                result.Created1 = DateTimeFromUnixTimestampMilliSeconds(data[0].GetProperty("captured_at").GetInt64());
-                                break;
-                            case 1:
-                                result.Url2 = data[1].GetProperty(fieldName).GetString();
-                                result.Creator2 = data[1].GetProperty("creator").GetProperty("username").GetString();
-                                result.Created2 = DateTimeFromUnixTimestampMilliSeconds(data[1].GetProperty("captured_at").GetInt64());
-                                break;
-                            case 2:
-                                result.Url3 = data[2].GetProperty(fieldName).GetString();
-                                result.Creator3 = data[2].GetProperty("creator").GetProperty("username").GetString();
-                                result.Created3 = DateTimeFromUnixTimestampMilliSeconds(data[2].GetProperty("captured_at").GetInt64());
-                                break;
-
-                        }
-
-                        if (i == 2)
-                        {
-                            break;
-                        }
-                    }
-                    return result;
-                }
-                
+                imageList.Add(new ImageServiceModel(imageUrl, imageRecordTime, imageCreator));
             }
-            else
-            {
-                var test = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Error during Api Call: {StatusCode} {test}", response.StatusCode, test);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,"Exception : {message}", ex.Message);
+
+            return imageList;
         }
 
-        return null;
+        return new List<ImageServiceModel>();
     }
 
-    public async Task<ImageResult?> GetImageForMapPoint(MapPoint mapPoint, double maxDistance = 0.3)
+    private static (MapPoint, MapPoint) GetImagePointRadii(MapPoint point, double halfSideInKm)
     {
-        var urlResult = await GetMapillaryImageUrlsAsync(mapPoint, maxDistance);
+        double lat = DegreesToRadians(point.Latitude);
+        double lon = DegreesToRadians(point.Longitude);
+        double halfSide = 1000 * halfSideInKm;
 
-        if (urlResult == null)
+        double radius = Wgs84EarthRadius(lat);
+        double pradius = radius * Math.Cos(lat);
+
+        double latMin = lat - halfSide / radius;
+        double latMax = lat + halfSide / radius;
+        double lonMin = lon - halfSide / pradius;
+        double lonMax = lon + halfSide / pradius;
+
+        MapPoint minPoint = new()
         {
-            _logger.LogDebug("nothing found");
-            return null;
-        }
+            Latitude = RadiansToDegrees(latMin),
+            Longitude = RadiansToDegrees(lonMin)
+        };
 
-        //Todo Download Image hier not on showing !
-
-        var result = new ImageResult();
-        result.Creator1 = urlResult.Creator1;
-        result.Created1 = urlResult.Created1;
-        if (!string.IsNullOrEmpty(urlResult.Url1))
+        MapPoint maxPoint = new()
         {
-            result.Image1 = ImageSource.FromUri(new Uri(urlResult.Url1));
-        }
+            Latitude = RadiansToDegrees(latMax),
+            Longitude = RadiansToDegrees(lonMax)
+        };
 
-        result.Creator2 = urlResult.Creator2;
-        result.Created2 = urlResult.Created2;
-        if (!string.IsNullOrEmpty(urlResult.Url2))
-        {
-            result.Image2 = ImageSource.FromUri(new Uri(urlResult.Url2));
-        }
-        
-        result.Creator3 = urlResult.Creator3;
-        result.Created3 = urlResult.Created3;
-        if (!string.IsNullOrEmpty(urlResult.Url3))
-        {
-            result.Image3 = ImageSource.FromUri(new Uri(urlResult.Url3));
-        }
-
-        return result;
+        return (minPoint, maxPoint);
     }
 
-    public static DateTime DateTimeFromUnixTimestampMilliSeconds( long milliSeconds )
+    private static double DegreesToRadians(double degrees)
+    {
+        return Math.PI * degrees / 180.0;
+    }
+
+    private static double RadiansToDegrees(double radians)
+    {
+        return 180.0 * radians / Math.PI;
+    }
+
+    private static double Wgs84EarthRadius(double latitude)
+    {
+        double scaledMajorAxisSquared = Wgs84A * Wgs84A * Math.Cos(latitude);
+        double scaledMinorAxisSquared = Wgs84B * Wgs84B * Math.Sin(latitude);
+        double projectedMajorAxis = Wgs84A * Math.Cos(latitude);
+        double projectedMinorAxis = Wgs84B * Math.Sin(latitude);
+        return Math.Sqrt((scaledMajorAxisSquared * scaledMajorAxisSquared + scaledMinorAxisSquared * scaledMinorAxisSquared) / (projectedMajorAxis * projectedMajorAxis + projectedMinorAxis * projectedMinorAxis));
+    }
+
+    private static DateTime DateTimeFromUnixTimestampMilliSeconds(long milliSeconds)
     {
         return UnixEpoch.AddMilliseconds(milliSeconds);
-    }
-
-    public static async Task<ImageSource?> DownloadAsImageAsync(string imageUrl)
-    {
-        /*using var client = new HttpClient();
-        using var response = await client.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead);
-        using var stream = await response.Content.ReadAsStreamAsync();
-
-        var imageSource = new BitmapImage();
-        imageSource.BeginInit();
-        imageSource.StreamSource = stream;
-        imageSource.EndInit();
-        return ImageSource.FromStream(p => stream);
-        */
-
-        return null;
-    }
-
-    public static async Task DownloadLargeImageAsync(string imageUrl, string fileName)
-    {
-        using var client = new HttpClient();
-        using var response = await client.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead);
-        await using var stream = await response.Content.ReadAsStreamAsync();
-        await using var fileStream = new FileStream(fileName, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
-        await stream.CopyToAsync(fileStream);
     }
 }

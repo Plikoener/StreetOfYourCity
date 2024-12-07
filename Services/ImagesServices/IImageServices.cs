@@ -1,9 +1,9 @@
-﻿using StreetOfYourCity.Services.ImagesServices.Dto;
+﻿using StreetOfYourCity.Models;
 using StreetOfYourCity.Services.LocationDataServices.Dto;
 
 namespace StreetOfYourCity.Services.ImagesServices;
 
-public interface IImageServices
+interface IImageServices
 {
-    Task<ImageResult?> GetImageForMapPoint(MapPoint mapPoint, double maxDistance = 0.3);
+    public Task<IList<ImageServiceModel>> GetMapillaryImagesUrl(MapPoint mapPoint, double halfSideInKm);
 }
