@@ -1,8 +1,9 @@
-﻿using StreetOfYourCity.Services.LocationDataServices.Dto;
+﻿using StreetOfYourCity.Services.ImagesServices.Dto;
+using StreetOfYourCity.Services.LocationDataServices.Dto;
 
 namespace StreetOfYourCity.Services.ImagesServices;
 
 public interface IImageServices
 {
-    Task<ImageSource> GetImageForMapPoint(MapPoint mapPoint, double maxDistance = 0.3);
+    Task<ImageResult?> GetImageForMapPoint(MapPoint mapPoint, double maxDistance = 0.3);
 }
