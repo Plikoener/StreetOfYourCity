@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using StreetOfYourCity.Services.LocationDataServices.Dto;
 
-namespace StreetOfYourCity.Services.ImagesServices
+namespace StreetOfYourCity.Services.ImagesServices.Dto
 {
     public class BoundingBox
     {

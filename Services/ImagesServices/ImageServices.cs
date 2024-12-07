@@ -30,8 +30,6 @@ public class ImageServices : IImageServices
                                                         $",{bbox.MaxPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{bbox.MaxPoint.Latitude.ToString(CultureInfo.InvariantCulture)}";
         _logger.LogDebug(url);
         
-        
-
         try
         {
             HttpResponseMessage response = await client.GetAsync(url);
