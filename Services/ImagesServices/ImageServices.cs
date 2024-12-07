@@ -87,7 +87,7 @@ public class ImageServices : IImageServices
                         {
                             result.Url2 = data[1].GetProperty(fieldName).GetString();
                             result.Creator2 = data[1].GetProperty("creator").GetProperty("username").GetString();
-                            result.Created1 = DateTimeFromUnixTimestampMilliSeconds(data[1].GetProperty("captured_at").GetInt64());
+                            result.Created2 = DateTimeFromUnixTimestampMilliSeconds(data[1].GetProperty("captured_at").GetInt64());
                         }
                         else if (i == 2)
                         {
