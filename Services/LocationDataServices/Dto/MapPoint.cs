@@ -4,7 +4,11 @@ public class MapPoint
 {
     public double Latitude { get; set; } = 0;
     public double Longitude { get; set; } = 0;
-    
+
+    public MapPoint()
+    {
+    }
+
     public MapPoint(double longitude, double latitude)
     {
         Longitude = longitude;

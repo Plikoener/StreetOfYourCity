@@ -9,7 +9,7 @@ namespace StreetOfYourCity.Services.ImagesServices;
 
 public class ImageServices : IImageServices
 {
-    private static readonly DateTime UnixEpoch = new DateTime( 1970, 1, 1, 0, 0, 0, DateTimeKind.Utc );
+    private static readonly DateTime UnixEpoch = new( 1970, 1, 1, 0, 0, 0, DateTimeKind.Utc );
 
     private readonly ILogger<ImageServices> _logger;
     private readonly string _accessToken;
@@ -50,7 +50,7 @@ public class ImageServices : IImageServices
         string url =
             $"{apiUrl}?fields={fieldName},creator,captured_at&bbox={bbox.MinPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{bbox.MinPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
             $",{bbox.MaxPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{bbox.MaxPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
-            ",limit=3";
+            "&limit=3";
         _logger.LogDebug(url);
         
         try
@@ -80,20 +80,20 @@ public class ImageServices : IImageServices
                         if (i == 0)
                         {
                             result.Url1 = data[0].GetProperty(fieldName).GetString();
-                            result.Creator1 = data[0].GetProperty("creator").GetString();
+                            result.Creator1 = data[0].GetProperty("creator").GetProperty("username").GetString();
                             result.Created1 = DateTimeFromUnixTimestampMilliSeconds(data[0].GetProperty("captured_at").GetInt64());
                         }
                         else if (i == 1)
                         {
                             result.Url2 = data[1].GetProperty(fieldName).GetString();
-                            result.Creator2 = data[1].GetProperty("creator").GetString();
+                            result.Creator2 = data[1].GetProperty("creator").GetProperty("username").GetString();
                             result.Created1 = DateTimeFromUnixTimestampMilliSeconds(data[1].GetProperty("captured_at").GetInt64());
                         }
                         else if (i == 2)
                         {
-                            result.Url2 = data[2].GetProperty(fieldName).GetString();
-                            result.Creator2 = data[2].GetProperty("creator").GetString();
-                            result.Created1 = DateTimeFromUnixTimestampMilliSeconds(data[2].GetProperty("captured_at").GetInt64());
+                            result.Url3 = data[2].GetProperty(fieldName).GetString();
+                            result.Creator3 = data[2].GetProperty("creator").GetProperty("username").GetString();
+                            result.Created3 = DateTimeFromUnixTimestampMilliSeconds(data[2].GetProperty("captured_at").GetInt64());
                         }
                         else
                         {
@@ -105,12 +105,13 @@ public class ImageServices : IImageServices
             }
             else
             {
-                Console.WriteLine($"Fehler bei der API-Anfrage: {response.StatusCode}");
+                var test = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Error during Api Call: {StatusCode} {test}", response.StatusCode, test);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Ein Fehler ist aufgetreten: {ex.Message}");
+            _logger.LogError(ex,"Exception : {message}", ex.Message);
         }
 
         return null;
