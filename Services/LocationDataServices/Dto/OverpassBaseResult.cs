@@ -8,7 +8,6 @@ public class OverpassBaseResult
     [DataMember( Name = "version" )]
     public double Version { get; set; }
 
-    
     [DataMember( Name = "generator" )]
     public string? Generator { get; set; }
 

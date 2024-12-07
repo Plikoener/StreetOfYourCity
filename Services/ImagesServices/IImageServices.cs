@@ -1,6 +1,9 @@
-﻿namespace StreetOfYourCity.Services.ImagesServices;
+﻿using StreetOfYourCity.Models;
+using StreetOfYourCity.Services.LocationDataServices.Dto;
 
-public interface IImageServices
+namespace StreetOfYourCity.Services.ImagesServices;
+
+interface IImageServices
 {
-    
+    public Task<IList<ImageServiceModel>> GetMapillaryImagesUrl(MapPoint mapPoint, double halfSideInKm);
 }
