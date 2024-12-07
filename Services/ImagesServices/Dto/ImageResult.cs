@@ -2,7 +2,6 @@
 
 public class ImageResult
 {
-    public string Id { get; } = Guid.NewGuid().ToString();
 
     public ImageSource? Image1 { get; set; }
     public DateTime Created1 { get; set; }
