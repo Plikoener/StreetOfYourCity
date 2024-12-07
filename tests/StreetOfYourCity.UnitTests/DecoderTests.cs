@@ -28,7 +28,7 @@ namespace StreetOfYourCity.UnitTests
             Assert.NotNull(messageBase);
             Assert.Equal("Overpass API 0.7.62.4 2390de5a", messageBase.Generator);
 
-            Assert.Equal(24736995, messageBase.Elements[0].Id);
+            Assert.Equal(24736995, messageBase.Elements![0].Id);
         }
     }
 }

@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using StreetOfYourCity.Services.ImagesServices.Dto;
+﻿using StreetOfYourCity.Services.ImagesServices.Dto;
 using StreetOfYourCity.Services.LocationDataServices.Dto;
 
 namespace StreetOfYourCity.Services.ImagesServices
 {
-    static class GeoHelper
+    internal static class GeoHelper
     {
 
         // Semi-axes of WGS-84 geoidal reference
@@ -21,8 +16,8 @@ namespace StreetOfYourCity.Services.ImagesServices
             // Bounding box surrounding the point at given coordinates,
             // assuming local approximation of Earth surface as a sphere
             // of radius given by WGS84
-            var lat = Deg2rad(point.Latitude);
-            var lon = Deg2rad(point.Longitude);
+            var lat = DegreesToRadians(point.Latitude);
+            var lon = DegreesToRadians(point.Longitude);
             var halfSide = 1000 * halfSideInKm;
 
             // Radius of Earth at given latitude
@@ -37,19 +32,19 @@ namespace StreetOfYourCity.Services.ImagesServices
 
             return new BoundingBox
             {
-                MinPoint = new MapPoint { Latitude = Rad2deg(latMin), Longitude = Rad2deg(lonMin) },
-                MaxPoint = new MapPoint { Latitude = Rad2deg(latMax), Longitude = Rad2deg(lonMax) }
+                MinPoint = new MapPoint { Latitude = RadiansToDegrees(latMin), Longitude = RadiansToDegrees(lonMin) },
+                MaxPoint = new MapPoint { Latitude = RadiansToDegrees(latMax), Longitude = RadiansToDegrees(lonMax) }
             };
         }
 
         // degrees to radians
-        private static double Deg2rad(double degrees)
+        private static double DegreesToRadians(double degrees)
         {
             return Math.PI * degrees / 180.0;
         }
 
         // radians to degrees
-        private static double Rad2deg(double radians)
+        private static double RadiansToDegrees(double radians)
         {
             return 180.0 * radians / Math.PI;
         }

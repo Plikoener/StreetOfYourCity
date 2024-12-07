@@ -36,20 +36,26 @@ public class ImageServices : IImageServices
         public string? Creator3 { get; set; }
     }
 
-    private  async Task<ApiSearchResult?> GetMapillaryImageUrlAsync(MapPoint mapPoint, double halfSideInKm)
+    private async Task<ApiSearchResult?> GetMapillaryImageUrlsAsync(MapPoint mapPoint, double halfSideInKm)
     {
-        var bbox = GeoHelper.GetBoundingBox(mapPoint, halfSideInKm);
+        var boundingBox = GeoHelper.GetBoundingBox(mapPoint, halfSideInKm);
+
+        if (boundingBox.MinPoint == null || boundingBox.MaxPoint == null)
+        {
+            _logger.LogError("boundingBox.MinPoint == null");
+            return null;
+        }
+
         const string apiUrl = "https://graph.mapillary.com/images";
 
-        using HttpClient client = new HttpClient();
+        using var client = new HttpClient();
         client.DefaultRequestHeaders.Add("Authorization", $"OAuth {_accessToken}");
-
-
+        
         // Anfrage-URL mit Koordinaten und den gewünschten Feldern  ( minLon, minLat, maxLon, maxLat).   thumb_2048
         var fieldName = "thumb_256_url"; //thumb_2048_url
         string url =
-            $"{apiUrl}?fields={fieldName},creator,captured_at&bbox={bbox.MinPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{bbox.MinPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
-            $",{bbox.MaxPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{bbox.MaxPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
+            $"{apiUrl}?fields={fieldName},creator,captured_at&bbox={boundingBox.MinPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{boundingBox.MinPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
+            $",{boundingBox.MaxPoint.Longitude.ToString(CultureInfo.InvariantCulture)},{boundingBox.MaxPoint.Latitude.ToString(CultureInfo.InvariantCulture)}" +
             "&limit=3";
         _logger.LogDebug(url);
         
@@ -61,7 +67,6 @@ public class ImageServices : IImageServices
             {
                 string json = await response.Content.ReadAsStringAsync();
 
-                // Console.WriteLine(json);
                 _logger.LogDebug(json);
 
                 // JSON-Daten parsen
@@ -72,36 +77,38 @@ public class ImageServices : IImageServices
                 {
                     _logger.LogDebug("Anzahl URLs : " + data.GetArrayLength());
 
-                    // URL des ersten Bildes extrahieren
                     var result = new ApiSearchResult();
 
                     for (var i = 0; i < data.GetArrayLength(); i++)
                     {
-                        if (i == 0)
+                        switch (i)
                         {
-                            result.Url1 = data[0].GetProperty(fieldName).GetString();
-                            result.Creator1 = data[0].GetProperty("creator").GetProperty("username").GetString();
-                            result.Created1 = DateTimeFromUnixTimestampMilliSeconds(data[0].GetProperty("captured_at").GetInt64());
+                            case 0:
+                                result.Url1 = data[0].GetProperty(fieldName).GetString();
+                                result.Creator1 = data[0].GetProperty("creator").GetProperty("username").GetString();
+                                result.Created1 = DateTimeFromUnixTimestampMilliSeconds(data[0].GetProperty("captured_at").GetInt64());
+                                break;
+                            case 1:
+                                result.Url2 = data[1].GetProperty(fieldName).GetString();
+                                result.Creator2 = data[1].GetProperty("creator").GetProperty("username").GetString();
+                                result.Created2 = DateTimeFromUnixTimestampMilliSeconds(data[1].GetProperty("captured_at").GetInt64());
+                                break;
+                            case 2:
+                                result.Url3 = data[2].GetProperty(fieldName).GetString();
+                                result.Creator3 = data[2].GetProperty("creator").GetProperty("username").GetString();
+                                result.Created3 = DateTimeFromUnixTimestampMilliSeconds(data[2].GetProperty("captured_at").GetInt64());
+                                break;
+
                         }
-                        else if (i == 1)
-                        {
-                            result.Url2 = data[1].GetProperty(fieldName).GetString();
-                            result.Creator2 = data[1].GetProperty("creator").GetProperty("username").GetString();
-                            result.Created2 = DateTimeFromUnixTimestampMilliSeconds(data[1].GetProperty("captured_at").GetInt64());
-                        }
-                        else if (i == 2)
-                        {
-                            result.Url3 = data[2].GetProperty(fieldName).GetString();
-                            result.Creator3 = data[2].GetProperty("creator").GetProperty("username").GetString();
-                            result.Created3 = DateTimeFromUnixTimestampMilliSeconds(data[2].GetProperty("captured_at").GetInt64());
-                        }
-                        else
+
+                        if (i == 2)
                         {
                             break;
                         }
                     }
                     return result;
                 }
+                
             }
             else
             {
@@ -119,7 +126,7 @@ public class ImageServices : IImageServices
 
     public async Task<ImageResult?> GetImageForMapPoint(MapPoint mapPoint, double maxDistance = 0.3)
     {
-        var urlResult = await GetMapillaryImageUrlAsync(mapPoint, maxDistance);
+        var urlResult = await GetMapillaryImageUrlsAsync(mapPoint, maxDistance);
 
         if (urlResult == null)
         {
